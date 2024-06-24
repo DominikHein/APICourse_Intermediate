@@ -70,6 +70,10 @@ namespace ApiCourse.Data
             dbConnection.Open();
             //Offene verbindung dem Command objekt zuweisen 
             commandWithParams.Connection = dbConnection;
+
+
+            Console.WriteLine(commandWithParams.ToString);
+
             //Befehl ausführen und anzahl der geänderten zeilen zählen 
             int rowsAffected = commandWithParams.ExecuteNonQuery();
             //verbindung schließen
