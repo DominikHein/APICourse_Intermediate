@@ -52,6 +52,32 @@ namespace ApiCourse.Data
             return dbConnection.Execute(sql);
 
         }
+        public bool ExecuteSqlWitParameters(string sql, List<SqlParameter> parameters)
+        {
+            //Command Objekt erstellen 
+            SqlCommand commandWithParams = new SqlCommand(sql);
+
+            //Parameter hinzufügen
+            foreach (SqlParameter parameter in parameters)
+            {
+
+                commandWithParams.Parameters.Add(parameter);
+
+            }
+
+            SqlConnection dbConnection = new SqlConnection(_configuration.GetConnectionString("DefaultConnection"));
+            //Verbindung öffnen
+            dbConnection.Open();
+            //Offene verbindung dem Command objekt zuweisen 
+            commandWithParams.Connection = dbConnection;
+            //Befehl ausführen und anzahl der geänderten zeilen zählen 
+            int rowsAffected = commandWithParams.ExecuteNonQuery();
+            //verbindung schließen
+            dbConnection.Close();
+            //True oder false mitgeben je nachdem ob Zeilen affected sind 
+            return rowsAffected > 0;
+
+        }
 
 
 
