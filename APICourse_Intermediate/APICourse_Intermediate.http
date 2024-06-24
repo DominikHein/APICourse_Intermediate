@@ -1,0 +1,6 @@
+@APICourse_Intermediate_HostAddress = http://localhost:5165
+
+GET {{APICourse_Intermediate_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###
