@@ -3,7 +3,10 @@ using APICourse_Intermediate.DTOs;
 using Microsoft.AspNetCore.Cryptography.KeyDerivation;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Data.SqlClient;
+using Microsoft.IdentityModel.Tokens;
 using System.Data;
+using System.IdentityModel.Tokens.Jwt;
+using System.Security.Claims;
 using System.Security.Cryptography;
 using System.Text;
 
@@ -72,7 +75,26 @@ namespace APICourse_Intermediate.Controllers
                     //Ausführen der SQL 
                     if (_dapper.ExecuteSqlWitParameters(sqlAddAuth, sqlParameters))
                     {
-                        return Ok();
+                        //Nutzer hinzufügen wenn Registriert 
+                        string sqlAddUser = @"
+                                            Insert Into TutorialAppSchema.Users 
+                                            ([FirstName],
+                                            [LastName],
+                                            [Email],
+                                            [Gender],
+                                            [Active]) 
+                                            Values (
+                                            '" + userForRegistration.FirstName + @"',
+                                            '" + userForRegistration.LastName + @"',
+                                            '" + userForRegistration.Email + @"',
+                                            '" + userForRegistration.Gender + @"',
+                                            1)";
+                        if (_dapper.ExecuteSql(sqlAddUser))
+                        {
+                            return Ok();
+                        }
+
+                        throw new Exception("Failed to Add User");
                     }
 
 
@@ -106,7 +128,14 @@ namespace APICourse_Intermediate.Controllers
                 }
             }
 
-            return Ok();
+            string userIdSql = $"SELECT * FROM TutorialAppSchema.USERS WHERE Email = '{userForLogin.Email}'";
+
+            int userId = _dapper.LoadDataSingle<int>(userIdSql);
+
+            return Ok(new Dictionary<string, string> {
+                {"token", CreateToken(userId)}
+            }
+            );
         }
 
         private byte[] GetPasswordHash(string password, byte[] passwordSalt)
@@ -124,6 +153,41 @@ namespace APICourse_Intermediate.Controllers
                 );
 
             return passwordHash;
+        }
+
+        private string CreateToken(int userId)
+        {
+            //Array von Claims erstellen 
+            Claim[] claims = new Claim[] {
+
+                new Claim("userId", userId.ToString())
+
+            };
+
+            //Symmetrischer Sichherheitsschlüssel generieren 
+            SymmetricSecurityKey tokenKey = new SymmetricSecurityKey(
+                Encoding.UTF8.GetBytes(
+                    _config.GetSection("Appsettings:TokenKey").Value));
+
+            //Anmeldeinformationen erstellen
+            SigningCredentials credentials = new SigningCredentials(
+                tokenKey,
+                SecurityAlgorithms.HmacSha512Signature);
+
+            //SecurityDescriptor erstellen 
+            //Enthält Claims, Anmeldeinformationen und Ablaufzeit des Token 
+            SecurityTokenDescriptor descriptor = new SecurityTokenDescriptor()
+            {
+                Subject = new ClaimsIdentity(claims),
+                SigningCredentials = credentials,
+                Expires = DateTime.Now.AddDays(1)
+            };
+
+            JwtSecurityTokenHandler tokenHandler = new JwtSecurityTokenHandler();
+
+            SecurityToken token = tokenHandler.CreateToken(descriptor);
+
+            return tokenHandler.WriteToken(token);
         }
     }
 }
