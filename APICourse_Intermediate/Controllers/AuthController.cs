@@ -1,31 +1,33 @@
 ﻿using ApiCourse.Data;
 using APICourse_Intermediate.DTOs;
-using Microsoft.AspNetCore.Cryptography.KeyDerivation;
+using APICourse_Intermediate.Helpers;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Data.SqlClient;
-using Microsoft.IdentityModel.Tokens;
 using System.Data;
-using System.IdentityModel.Tokens.Jwt;
-using System.Security.Claims;
 using System.Security.Cryptography;
-using System.Text;
 
 namespace APICourse_Intermediate.Controllers
 {
+    [Authorize]
+    [ApiController]
+    [Route("[controller]")]
     public class AuthController : ControllerBase
     {
         private readonly DataContextDapper _dapper;
 
-        private readonly IConfiguration _config;
+        private readonly AuthHelper _authHelper;
 
         public AuthController(IConfiguration config)
         {
 
             _dapper = new DataContextDapper(config);
-            _config = config;
+
+            _authHelper = new AuthHelper(config);
+
 
         }
-
+        [AllowAnonymous]
         [HttpPost("Register")]
         public IActionResult Register(UserForRegistrationDto userForRegistration)
         {
@@ -56,7 +58,7 @@ namespace APICourse_Intermediate.Controllers
 
                     Console.WriteLine(sqlAddAuth);
                     //PasswortHash generieren
-                    byte[] passwordHash = GetPasswordHash(userForRegistration.Password, passwordSalt);
+                    byte[] passwordHash = _authHelper.GetPasswordHash(userForRegistration.Password, passwordSalt);
 
                     //Erstellen der SQL Parameter für das einfügen vom PasswordHash und Salt
                     List<SqlParameter> sqlParameters = new List<SqlParameter>();
@@ -106,7 +108,7 @@ namespace APICourse_Intermediate.Controllers
 
             throw new Exception("Passwords do not match");
         }
-
+        [AllowAnonymous]
         [HttpPost("Login")]
         public IActionResult Login(UserForLoginDto userForLogin)
         {
@@ -118,7 +120,7 @@ namespace APICourse_Intermediate.Controllers
 
             UserForLoginConfirmationDto userForConfirmation = _dapper.LoadDataSingle<UserForLoginConfirmationDto>(sqlForHashAndSalt);
             //Passwordhash generieren
-            byte[] passwordHash = GetPasswordHash(userForLogin.Password, userForConfirmation.PasswordSalt);
+            byte[] passwordHash = _authHelper.GetPasswordHash(userForLogin.Password, userForConfirmation.PasswordSalt);
             //Hashes vergleichen 
             for (int index = 0; index < passwordHash.Length; index++)
             {
@@ -129,65 +131,31 @@ namespace APICourse_Intermediate.Controllers
             }
 
             string userIdSql = $"SELECT * FROM TutorialAppSchema.USERS WHERE Email = '{userForLogin.Email}'";
-
             int userId = _dapper.LoadDataSingle<int>(userIdSql);
-
+            //Token zurückgeben
             return Ok(new Dictionary<string, string> {
-                {"token", CreateToken(userId)}
+                {"token", _authHelper.CreateToken(userId)}
             }
             );
         }
 
-        private byte[] GetPasswordHash(string password, byte[] passwordSalt)
-        {
-            //Passwordsalt und PasswordKey kombinieren 
-            string passwordSaltPlusString = _config.GetSection("AppSettings:PasswordKey").Value +
-                Convert.ToBase64String(passwordSalt);
-            //PasswordHash generieren 
-            byte[] passwordHash = KeyDerivation.Pbkdf2(
-                password: password,
-                salt: Encoding.ASCII.GetBytes(passwordSaltPlusString),
-                prf: KeyDerivationPrf.HMACSHA256,
-                iterationCount: 100000,
-                numBytesRequested: 256 / 8
-                );
 
-            return passwordHash;
+        [HttpGet("RefreshToken")]
+        public IActionResult RefreshToken()
+        {
+            //Benutzer ID aus den Claims abrufen
+            string userId = User.FindFirst("userId")?.Value + "";
+            //SQL abfrage um Benutzer ID aus DB abzurufen
+            string userIdSql = $"SELECT userId FROM TutorialAppSchema.Users WHERE UserId = '{userId}'";
+            //Benutzer ID abrufen 
+            int userIdFromDB = _dapper.LoadDataSingle<int>(userIdSql);
+
+            //Rückgabe eines neuen Token
+            return Ok(new Dictionary<string, string> {
+                {"token", _authHelper.CreateToken(userIdFromDB)} });
         }
 
-        private string CreateToken(int userId)
-        {
-            //Array von Claims erstellen 
-            Claim[] claims = new Claim[] {
 
-                new Claim("userId", userId.ToString())
 
-            };
-
-            //Symmetrischer Sichherheitsschlüssel generieren 
-            SymmetricSecurityKey tokenKey = new SymmetricSecurityKey(
-                Encoding.UTF8.GetBytes(
-                    _config.GetSection("Appsettings:TokenKey").Value));
-
-            //Anmeldeinformationen erstellen
-            SigningCredentials credentials = new SigningCredentials(
-                tokenKey,
-                SecurityAlgorithms.HmacSha512Signature);
-
-            //SecurityDescriptor erstellen 
-            //Enthält Claims, Anmeldeinformationen und Ablaufzeit des Token 
-            SecurityTokenDescriptor descriptor = new SecurityTokenDescriptor()
-            {
-                Subject = new ClaimsIdentity(claims),
-                SigningCredentials = credentials,
-                Expires = DateTime.Now.AddDays(1)
-            };
-
-            JwtSecurityTokenHandler tokenHandler = new JwtSecurityTokenHandler();
-
-            SecurityToken token = tokenHandler.CreateToken(descriptor);
-
-            return tokenHandler.WriteToken(token);
-        }
     }
 }

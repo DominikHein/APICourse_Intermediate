@@ -1,4 +1,7 @@
 using APICourse_Intermediate.Data;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.IdentityModel.Tokens;
+using System.Text;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -30,6 +33,30 @@ builder.Services.AddCors((options) =>
 
 builder.Services.AddScoped<IUserRepository, UserRepository>();
 
+string? tokenKeyString = builder.Configuration.GetSection("Appsettings:TokenKey").Value;
+
+//Symmetrischer Sichherheitsschlüssel generieren 
+SymmetricSecurityKey tokenKey = new SymmetricSecurityKey(
+    Encoding.UTF8.GetBytes(
+        tokenKeyString != null ? tokenKeyString : ""));
+
+//Validierungsparameter Konfigurieren 
+TokenValidationParameters validationParameters = new TokenValidationParameters()
+{
+    IssuerSigningKey = tokenKey, // TokenKey
+    ValidateIssuer = false, //Issuer wird nicht validiert 
+    ValidateIssuerSigningKey = false, //Signaturschlüssel wird nicht validiert 
+    ValidateAudience = false //Audience wird nicht validiert 
+};
+//JWT Authentifizierung zu den builder diensten hinzufügen 
+builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+    .AddJwtBearer(options =>
+    {
+        //Validierungsparameter setzen
+        options.TokenValidationParameters = validationParameters;
+    });
+
+
 var app = builder.Build();
 
 // Configure the HTTP request pipeline.
@@ -46,6 +73,8 @@ else
 }
 
 
+
+app.UseAuthentication();
 
 app.UseAuthorization();
 

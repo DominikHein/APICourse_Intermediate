@@ -29,6 +29,7 @@ namespace ApiCourse.Data
         {
 
             IDbConnection dbConnection = new SqlConnection(_configuration.GetConnectionString("DefaultConnection"));
+            Console.WriteLine(sql);
             return dbConnection.QuerySingle<T>(sql);
 
 
