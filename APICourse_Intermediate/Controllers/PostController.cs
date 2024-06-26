@@ -69,7 +69,26 @@ namespace APICourse_Intermediate.Controllers
                                   [PostContent],
                                   [PostCreated],
                                   [PostUpdated] FROM TutorialAppSchema.Post
-                                  WHERE PostId = " + User.FindFirst("userId")?.Value;
+                                  WHERE UserId = " + User.FindFirst("userId")?.Value;
+
+            Console.WriteLine(sql);
+
+            return _dapper.LoadData<Post>(sql);
+        }
+        //Post nach Inhalt suchen 
+        [HttpGet("PostBySearch/{searchParam}")]
+        public IEnumerable<Post> PostBySearch(string searchParam)
+        {
+            string sql = @"SELECT [PostId],
+                                  [UserId],
+                                  [PostTitle],
+                                  [PostContent],
+                                  [PostCreated],
+                                  [PostUpdated] FROM TutorialAppSchema.Post
+                                  WHERE PostTitle LIKE '%" + searchParam + "%'" +
+                                  "OR PostContent LIKE '%" + searchParam + "%'";
+
+            Console.WriteLine(sql);
 
             return _dapper.LoadData<Post>(sql);
         }
@@ -79,15 +98,16 @@ namespace APICourse_Intermediate.Controllers
         [HttpPost("Post")]
         public IActionResult AddPost(PostToAddDto postToAdd)
         {
-            string sql = @"Insert Into TutorialAppSchema.Post [PostId],
+            string sql = @"Insert Into TutorialAppSchema.Post (
                         [UserId],
                         [PostTitle],
                         [PostContent],
                         [PostCreated],
-                        [PostUpdated] VALUES (" + User.FindFirst("userId")?.Value
+                        [PostUpdated]) VALUES (" + User.FindFirst("userId")?.Value
                         + ",'" + postToAdd.PostTitle
-                        + ",'" + postToAdd.PostContent
+                        + "','" + postToAdd.PostContent
                         + "', GETDATE(), GETDATE() )";
+            Console.WriteLine(sql);
             if (_dapper.ExecuteSql(sql))
             {
                 return Ok();
@@ -96,5 +116,40 @@ namespace APICourse_Intermediate.Controllers
             throw new Exception("Failed to create post");
 
         }
+
+        //Post in DB Editieren
+        [HttpPost("EditPost")]
+        public IActionResult EditPost(PostToEditDto postToEdit)
+        {
+            //SQL das den Post nach der Mitgegebenen PostId durchsucht und "prüft" ob der Post von dem Benutzer 
+            //erstellt worden ist der die Anfrage schickt
+            string sql = @"Update TutorialAppSchema.Post 
+                         SET PostContent = '" + postToEdit.PostContent
+                         + "', PostTitle = '" + postToEdit.PostTitle
+                         + @"', PostUpdated = GETDATE()
+                         WHERE PostId = " + postToEdit.PostId.ToString() +
+                         "AND UserId = " + User.FindFirst("userId")?.Value;
+            if (_dapper.ExecuteSql(sql))
+            {
+                return Ok();
+            }
+
+            throw new Exception("Failed to edit post");
+
+        }
+        //Post löschen 
+        [HttpDelete("PostDelete/{postId}")]
+        public IActionResult DeletePost(int postId)
+        {
+
+            string sql = @"DELETE FROM TutorialAppSchema.Posts WHERE PostId = " + postId.ToString();
+
+            if (_dapper.ExecuteSql(sql))
+            {
+                return Ok();
+            }
+            throw new Exception("Löschen Fehlgeschlagen");
+        }
+
     }
 }
