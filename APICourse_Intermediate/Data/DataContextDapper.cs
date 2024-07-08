@@ -32,8 +32,6 @@ namespace ApiCourse.Data
             Console.WriteLine(sql);
             return dbConnection.QuerySingle<T>(sql);
 
-
-
         }
         //Methode für SQL Execute 
         public bool ExecuteSql(string sql)
@@ -81,6 +79,27 @@ namespace ApiCourse.Data
             dbConnection.Close();
             //True oder false mitgeben je nachdem ob Zeilen affected sind 
             return rowsAffected > 0;
+
+        }
+
+        //Methode um mehrere Daten mit SQL Parametern aus der Datenbank abzufragen
+        public IEnumerable<T> LoadDataWithParameter<T>(string sql, DynamicParameters parameters)
+        {
+            //Connection kreieren 
+            IDbConnection dbConnection = new SqlConnection(_configuration.GetConnectionString("DefaultConnection"));
+            //Dappers Query um SQL zu executen 
+            return dbConnection.Query<T>(sql, parameters);
+
+
+
+        }
+        //Methode um einzelenen Eintrag mit SQL Parametern abzufragen 
+        public T LoadDataSingleWithParameter<T>(string sql, DynamicParameters parameters)
+        {
+
+            IDbConnection dbConnection = new SqlConnection(_configuration.GetConnectionString("DefaultConnection"));
+            Console.WriteLine(sql);
+            return dbConnection.QuerySingle<T>(sql, parameters);
 
         }
 
