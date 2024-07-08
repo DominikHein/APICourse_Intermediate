@@ -1,6 +1,8 @@
 ﻿using ApiCourse.Data;
+using ApiCourse.Model;
 using APICourse_Intermediate.DTOs;
 using APICourse_Intermediate.Helpers;
+using AutoMapper;
 using Dapper;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -17,12 +19,23 @@ namespace APICourse_Intermediate.Controllers
 
         private readonly AuthHelper _authHelper;
 
+        private readonly IMapper _mapper;
+
+        private readonly ReusableSql _reusableSql;
+
         public AuthController(IConfiguration config)
         {
 
             _dapper = new DataContextDapper(config);
 
             _authHelper = new AuthHelper(config);
+
+            _reusableSql = new ReusableSql(config);
+
+            _mapper = new Mapper(new MapperConfiguration(cfg =>
+            {
+                cfg.CreateMap<UserForRegistrationDto, UserComplete>();
+            }));
 
 
         }
@@ -50,21 +63,11 @@ namespace APICourse_Intermediate.Controllers
                     //Ausführen der SQL 
                     if (_authHelper.SetPassword(userForSetPassword))
                     {
-                        //Nutzer hinzufügen wenn Registriert 
-                        string sqlAddUser = @"
-                        EXEC TutorialAppSchema.spUser_Upsert 
-                        @FirstName = '" + userForRegistration.FirstName + @"',
-                        @LastName = '" + userForRegistration.LastName + @"',
-                        @Email = '" + userForRegistration.Email + @"',
-                        @Gender = '" + userForRegistration.Gender + @"',
-                        @JobTitle = '" + userForRegistration.JobTitle + @"',
-                        @Department = '" + userForRegistration.Department + @"',
-                        @Salary = '" + userForRegistration.Salary + @"',
-                        @Active = 1";
+                        //userForRegistraion Felder auf die userComplete Felder mappen 
+                        UserComplete userComplete = _mapper.Map<UserComplete>(userForRegistration);
+                        userComplete.Active = true;
 
-                        Console.WriteLine(sqlAddUser);
-
-                        if (_dapper.ExecuteSql(sqlAddUser))
+                        if (_reusableSql.UpsertUser(userComplete))
                         {
                             return Ok();
                         }
