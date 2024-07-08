@@ -1,7 +1,7 @@
 ﻿using ApiCourse.Data;
 using APICourse_Intermediate.DTOs;
+using Dapper;
 using Microsoft.AspNetCore.Cryptography.KeyDerivation;
-using Microsoft.Data.SqlClient;
 using Microsoft.IdentityModel.Tokens;
 using System.Data;
 using System.IdentityModel.Tokens.Jwt;
@@ -100,21 +100,11 @@ namespace APICourse_Intermediate.Helpers
             byte[] passwordHash = GetPasswordHash(userForSetPassword.Password, passwordSalt);
 
             //Erstellen der SQL Parameter für das einfügen vom PasswordHash und Salt
-            List<SqlParameter> sqlParameters = new List<SqlParameter>();
+            DynamicParameters sqlParameters = new DynamicParameters();
 
-            SqlParameter emailParameter = new SqlParameter("@EmailParam", SqlDbType.VarChar);
-            emailParameter.Value = userForSetPassword.Email;
-            sqlParameters.Add(emailParameter);
-
-            SqlParameter passwordHashParameter = new SqlParameter("@PasswordHashParam", SqlDbType.VarBinary);
-            passwordHashParameter.Value = passwordHash;
-            sqlParameters.Add(passwordHashParameter);
-
-            SqlParameter passwordSaltParameter = new SqlParameter("@PasswordSaltParam", SqlDbType.VarBinary);
-            passwordSaltParameter.Value = passwordSalt;
-            sqlParameters.Add(passwordSaltParameter);
-
-
+            sqlParameters.Add("@EmailParam", userForSetPassword.Email, DbType.String);
+            sqlParameters.Add("@PasswordHashParam", passwordHash, DbType.Binary);
+            sqlParameters.Add("@PasswordSaltParam", passwordSalt, DbType.Binary);
 
             //Ausführen der SQL 
             return _dapper.ExecuteSqlWitParameters(sqlAddAuth, sqlParameters);

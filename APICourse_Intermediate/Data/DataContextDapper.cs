@@ -51,8 +51,13 @@ namespace ApiCourse.Data
             return dbConnection.Execute(sql);
 
         }
-        public bool ExecuteSqlWitParameters(string sql, List<SqlParameter> parameters)
+        public bool ExecuteSqlWitParameters(string sql, DynamicParameters parameters)
         {
+            IDbConnection dbConnection = new SqlConnection(_configuration.GetConnectionString("DefaultConnection"));
+            //Gibt zurück ob sich was geändert hat 
+            return dbConnection.Execute(sql, parameters) > 0;
+
+            /*
             //Command Objekt erstellen 
             SqlCommand commandWithParams = new SqlCommand(sql);
 
@@ -79,6 +84,7 @@ namespace ApiCourse.Data
             dbConnection.Close();
             //True oder false mitgeben je nachdem ob Zeilen affected sind 
             return rowsAffected > 0;
+            */
 
         }
 
