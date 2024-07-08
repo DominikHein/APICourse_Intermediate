@@ -1,5 +1,6 @@
 using ApiCourse.Data;
 using ApiCourse.Model;
+using Dapper;
 using Microsoft.AspNetCore.Mvc;
 
 namespace ApiCourse.Controllers
@@ -29,22 +30,31 @@ namespace ApiCourse.Controllers
         {
             string sql = $"EXEC TutorialAppSchema.spUsers_Get";
 
-            string parameter = "";
+            string stringParameter = "";
+
+            DynamicParameters sqlParameters = new DynamicParameters();
 
 
             if (userId != 0)
             {
-                parameter += $", @UserId = {userId.ToString()}";
+                stringParameter += $", @UserId = @UserIdParameter";
+                sqlParameters.Add("@UserIdParameter", userId, System.Data.DbType.Int32);
+
             }
             if (isActive)
             {
-                parameter += $", @Active = {isActive}";
+                stringParameter += $", @Active = @ActiveParameter";
+                sqlParameters.Add("@ActiveParameter", isActive, System.Data.DbType.Boolean);
             }
-            sql += parameter.Substring(1);
+            if (stringParameter.Length != 0)
+            {
+                sql += stringParameter.Substring(1);
+            }
+
 
             Console.WriteLine(sql);
 
-            IEnumerable<UserComplete> users = _dapper.LoadData<UserComplete>(sql);
+            IEnumerable<UserComplete> users = _dapper.LoadDataWithParameter<UserComplete>(sql, sqlParameters);
 
             return users;
         }
@@ -57,19 +67,31 @@ namespace ApiCourse.Controllers
 
             string sql = @"
             EXEC TutorialAppSchema.spUser_Upsert 
-                Set @FirstName = '" + user.FirstName + @"',
-                    @LastName = '" + user.LastName + @"',
-                    @Email = '" + user.Email + @"',
-                    @Gender = '" + user.Gender + @"',
-                    @JobTitle = '" + user.JobTitle + @"',
-                    @Department = '" + user.Department + @"',
-                    @Salary = '" + user.Salary + @"',
-                    @Active = '" + user.Active + @"', 
-                    @UserId = " + user.UserId + ";";
+                Set @FirstName = @FirstNameParameter,
+                    @LastName = @LastNameParameter,
+                    @Email = @EmailParameter,
+                    @Gender = @GenderParameter,
+                    @JobTitle = @JobTitleParameter,
+                    @Department = @DepartmentParameter,
+                    @Salary = @SalaryParameter,
+                    @Active = @ActiveParameter, 
+                    @UserId = @UserIdParameter";
+
+            DynamicParameters sqlParameters = new DynamicParameters();
+
+            sqlParameters.Add("@FirstNameParameter", user.FirstName, System.Data.DbType.String);
+            sqlParameters.Add("@LastNameParameter", user.LastName, System.Data.DbType.String);
+            sqlParameters.Add("@EmailParameter", user.Email, System.Data.DbType.String);
+            sqlParameters.Add("@GenderParameter", user.Gender, System.Data.DbType.String);
+            sqlParameters.Add("@JobTitleParameter", user.JobTitle, System.Data.DbType.String);
+            sqlParameters.Add("@DepartmentParameter", user.Department, System.Data.DbType.String);
+            sqlParameters.Add("@SalaryParameter", user.Salary, System.Data.DbType.Decimal);
+            sqlParameters.Add("@ActiveParameter", user.Active, System.Data.DbType.Boolean);
+            sqlParameters.Add("@UserIdParameter", user.UserId, System.Data.DbType.Int32);
 
             Console.WriteLine(sql);
 
-            if (_dapper.ExecuteSql(sql))
+            if (_dapper.ExecuteSqlWitParameters(sql, sqlParameters))
             {
                 return Ok();
             }
@@ -82,9 +104,13 @@ namespace ApiCourse.Controllers
         public IActionResult DeleteUser(int userId)
         {
 
-            string sql = $"TutorialAppSchema.spUser_Delete, @{userId.ToString()}";
+            string sql = $"TutorialAppSchema.spUser_Delete @UserId = @UserIdParameter";
 
-            if (_dapper.ExecuteSql(sql))
+            DynamicParameters sqlParameters = new DynamicParameters();
+
+            sqlParameters.Add("@UserIdParameter", userId, System.Data.DbType.Int32);
+
+            if (_dapper.ExecuteSqlWitParameters(sql, sqlParameters))
             {
                 return Ok();
             }
