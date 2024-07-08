@@ -1,5 +1,4 @@
 ﻿using ApiCourse.Data;
-using APICourse_Intermediate.DTOs;
 using APICourse_Intermediate.Model;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -17,19 +16,43 @@ namespace APICourse_Intermediate.Controllers
         {
             _dapper = new DataContextDapper(config);
         }
-        //Alle Posts aus Datenbank holen
-        [HttpGet("Posts")]
-        public IEnumerable<Post> GetPosts()
+        //Post aus Datenbank holen
+        //Mit Stored Procedure nach PostId, UserId oder Search Parameter Filtern
+        //Macht PostSingle, PostByUser und PostBySearch Redundant
+        [HttpGet("Posts/{postId}/{userId}/{searchParam}")]
+        public IEnumerable<Post> GetPosts(int postId = 0, int userId = 0, string searchParam = "None")
         {
-            string sql = @"SELECT [PostId],
-                                  [UserId],
-                                  [PostTitle],
-                                  [PostContent],
-                                  [PostCreated],
-                                  [PostUpdated] FROM TutorialAppSchema.Post";
+            string sql = @"EXEC TutorialAppSchema.spPosts_Get";
+            string parameter = "";
+
+            //Wenn 0 oder None wird nicht danach gefiltert 
+            if (postId != 0)
+            {
+                parameter += $", @PostId = {postId.ToString()}";
+            }
+            if (userId != 0)
+            {
+                parameter += $", @UserId = {userId.ToString()}";
+            }
+
+            if (searchParam != "None")
+            {
+                parameter += $", @SearchValue = {searchParam.ToString()}";
+            }
+
+            if (parameter.Length > 0)
+            {
+                sql += parameter.Substring(1);
+            }
+
+            Console.WriteLine(sql);
 
             return _dapper.LoadData<Post>(sql);
         }
+
+
+
+        /*
         //Bestimmten Post aus datenbank holen 
         [HttpGet("PostSingle/{postId}")]
         public IEnumerable<Post> GetPostSingle(int postId)
@@ -43,7 +66,9 @@ namespace APICourse_Intermediate.Controllers
                                   WHERE PostId = " + postId.ToString();
 
             return _dapper.LoadData<Post>(sql);
-        }
+        } */
+
+        /*
         //Post von einem bestimmten Nutzer aus der Datenbank holen 
         [HttpGet("PostsByUser/{userId}")]
         public IEnumerable<Post> GetPostByUser(int userId)
@@ -58,23 +83,21 @@ namespace APICourse_Intermediate.Controllers
 
             return _dapper.LoadData<Post>(sql);
         }
+        */
+
+
         //Posts des derzeitigen Users aus Datenbank holen 
         //Benutzer aus dem derzeitigen Token wird genommen
         [HttpGet("MyPosts")]
         public IEnumerable<Post> GetMyPosts()
         {
-            string sql = @"SELECT [PostId],
-                                  [UserId],
-                                  [PostTitle],
-                                  [PostContent],
-                                  [PostCreated],
-                                  [PostUpdated] FROM TutorialAppSchema.Post
-                                  WHERE UserId = " + User.FindFirst("userId")?.Value;
-
-            Console.WriteLine(sql);
+            string sql = @"EXEC TutorialAppSchema.spPosts_Get @UserId = " + User.FindFirst("userId")?.Value;
 
             return _dapper.LoadData<Post>(sql);
         }
+
+
+        /*
         //Post nach Inhalt suchen 
         [HttpGet("PostBySearch/{searchParam}")]
         public IEnumerable<Post> PostBySearch(string searchParam)
@@ -92,21 +115,25 @@ namespace APICourse_Intermediate.Controllers
 
             return _dapper.LoadData<Post>(sql);
         }
+        */
 
 
         //Post zur Datenbank hinzufügen
-        [HttpPost("Post")]
-        public IActionResult AddPost(PostToAddDto postToAdd)
+        //Update oder Insert Post 
+        //Edit Post Redundant
+        [HttpPut("UpsertPost")]
+        public IActionResult AddPost(Post postToUpsert)
         {
-            string sql = @"Insert Into TutorialAppSchema.Post (
-                        [UserId],
-                        [PostTitle],
-                        [PostContent],
-                        [PostCreated],
-                        [PostUpdated]) VALUES (" + User.FindFirst("userId")?.Value
-                        + ",'" + postToAdd.PostTitle
-                        + "','" + postToAdd.PostContent
-                        + "', GETDATE(), GETDATE() )";
+            string sql = @"EXEC TutorialAppSchema.spPost_Upsert 
+                         @UserId = " + User.FindFirst("userId")?.Value +
+                         ", @PostTitle = '" + postToUpsert.PostTitle +
+                         "', @PostContent = '" + postToUpsert.PostContent + "'";
+
+            if (postToUpsert.PostId > 0)
+            {
+                sql += ", @PostId = " + postToUpsert.PostId.ToString();
+            }
+
             Console.WriteLine(sql);
             if (_dapper.ExecuteSql(sql))
             {
@@ -119,7 +146,7 @@ namespace APICourse_Intermediate.Controllers
 
         //Post in DB Editieren
         [HttpPost("EditPost")]
-        public IActionResult EditPost(PostToEditDto postToEdit)
+        public IActionResult EditPost(Post postToEdit)
         {
             //SQL das den Post nach der Mitgegebenen PostId durchsucht und "prüft" ob der Post von dem Benutzer 
             //erstellt worden ist der die Anfrage schickt
@@ -137,12 +164,13 @@ namespace APICourse_Intermediate.Controllers
             throw new Exception("Failed to edit post");
 
         }
+
         //Post löschen 
         [HttpDelete("PostDelete/{postId}")]
         public IActionResult DeletePost(int postId)
         {
 
-            string sql = @"DELETE FROM TutorialAppSchema.Posts WHERE PostId = " + postId.ToString();
+            string sql = $"EXEC TutorialAppSchema.spPost_Delete @PostId = {postId}, @UserId = {User.FindFirst("userId")?.Value} ";
 
             if (_dapper.ExecuteSql(sql))
             {
